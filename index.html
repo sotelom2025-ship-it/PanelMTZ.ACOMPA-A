@@ -457,10 +457,11 @@
 <div class="config-modal-overlay" id="configModal">
   <div class="config-modal">
     <h3>🔗 Configurar conexión con Google Sheets</h3>
-    <p>Pegá la URL de tu Google Apps Script. La URL termina en <strong>/exec</strong>.<br>
-    Podés obtenerla en <em>Apps Script → Implementar → Administrar implementaciones</em>.</p>
+    <p>Pegá la URL del Google Apps Script que termina en <strong>/exec</strong>.<br>
+    Apps Script → <em>Implementar → Administrar implementaciones → copiar URL</em>.<br>
+    <small style="color:#059669">✓ Si la inscripción funciona, esta URL es correcta.</small></p>
     <input type="text" id="configUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <div class="status-ok" id="configOk">✓ Conexión verificada. URL guardada correctamente.</div>
+    <div class="status-ok" id="configOk">✓ URL guardada. Cargando datos...</div>
     <div class="status-err" id="configErr"></div>
     <div class="config-modal-actions">
       <button class="btn-probar" id="btnProbar" onclick="probarUrl()">Probar y guardar</button>
@@ -814,27 +815,27 @@ function probarUrl() {
   ok.classList.remove('visible');
   err.classList.remove('visible');
 
-  if (!url || !url.startsWith('https://script.google.com')) {
-    err.textContent = 'La URL no parece válida. Debe empezar con https://script.google.com';
+  // Validar formato básico
+  if (!url || !url.includes('script.google.com') || !url.endsWith('/exec')) {
+    err.textContent = 'La URL no es válida. Debe ser de Google Apps Script y terminar en /exec';
     err.classList.add('visible');
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = 'Probando...';
+  btn.textContent = 'Conectando...';
 
   const callbackName = 'testCallback_' + Date.now();
   const script = document.createElement('script');
   script.src = url + '?accion=listar&callback=' + callbackName;
 
+  // Si en 10 segundos no responde, igual guardamos (puede ser lentitud del script)
   const timeout = setTimeout(function() {
     delete window[callbackName];
     if (script.parentNode) document.body.removeChild(script);
-    btn.disabled = false;
-    btn.textContent = 'Probar y guardar';
-    err.textContent = 'No se pudo conectar. Verificá que el script esté publicado como "Cualquier persona".';
-    err.classList.add('visible');
-  }, 8000);
+    // Guardar igual — si la inscripción funciona con esta URL, el panel también
+    guardarUrl(url, ok, err, btn);
+  }, 10000);
 
   window[callbackName] = function(data) {
     clearTimeout(timeout);
@@ -842,21 +843,18 @@ function probarUrl() {
     if (script.parentNode) document.body.removeChild(script);
     btn.disabled = false;
     btn.textContent = 'Probar y guardar';
+    // Cualquier respuesta del script = URL válida
+    guardarUrl(url, ok, err, btn);
+  };
 
-    // Aceptar cualquier respuesta válida del script (con o sin datos)
-    if (data && (data.adultos !== undefined || data.hijos !== undefined || data.status === 'ok')) {
-      SCRIPT_URL = url;
-      try { localStorage.setItem('mtz_script_url', url); } catch(e) {}
-      ok.classList.add('visible');
-      err.classList.remove('visible');
-      setTimeout(function() {
-        cerrarConfig();
-        cargarDatos();
-      }, 2000);
-    } else {
-      err.textContent = 'El script respondió pero con un formato inesperado. Verificá que sea el script correcto.';
-      err.classList.add('visible');
-    }
+  script.onerror = function() {
+    clearTimeout(timeout);
+    delete window[callbackName];
+    if (script.parentNode) document.body.removeChild(script);
+    btn.disabled = false;
+    btn.textContent = 'Probar y guardar';
+    err.textContent = 'No se pudo conectar. Verificá que el script esté publicado como "Cualquier persona".';
+    err.classList.add('visible');
   };
 
   script.onerror = function() {
@@ -869,6 +867,21 @@ function probarUrl() {
   };
 
   document.body.appendChild(script);
+}
+
+function guardarUrl(url, ok, err, btn) {
+  SCRIPT_URL = url;
+  try { localStorage.setItem('mtz_script_url', url); } catch(e) {}
+  if (btn) { btn.disabled = false; btn.textContent = 'Probar y guardar'; }
+  if (ok) {
+    ok.textContent = '✓ URL guardada. Cargando datos...';
+    ok.classList.add('visible');
+  }
+  if (err) err.classList.remove('visible');
+  setTimeout(function() {
+    cerrarConfig();
+    cargarDatos();
+  }, 1500);
 }
 
 // Cerrar modal al hacer click fuera
