@@ -461,11 +461,15 @@
 
         <div class="admin-section">
           <h3>🏫 Asignar escuelas a inspector</h3>
-          <div class="form-inline">
-            <select id="asignarUsuario" style="min-width:180px">
-              <option value="">— Seleccionar usuario —</option>
+          <div class="form-inline" style="flex-wrap:wrap;gap:10px">
+            <select id="asignarDistriталь" style="min-width:150px">
+              <option value="">— Distrital —</option>
+              <option value="DISTRITAL 1">Distrital 1</option>
+              <option value="DISTRITAL 2">Distrital 2</option>
+              <option value="DISTRITAL 3">Distrital 3</option>
             </select>
-            <input type="text" id="asignarEscuela" placeholder="Tipo y número de escuela (ej: Primaria 45)">
+            <input type="text" id="asignarInspectorNombre" placeholder="Nombre del inspector" style="min-width:180px">
+            <input type="text" id="asignarEscuela" placeholder="Tipo y número de escuela (ej: Primaria 45)" style="min-width:220px">
             <button class="btn-agregar" onclick="asignarEscuela()">Asignar</button>
           </div>
           <div id="listaAsignaciones" style="margin-top:14px"></div>
@@ -784,22 +788,34 @@ function quitarUsuario(nombre) {
 }
 
 function abrirAsignarEscuela(rol) {
-  document.getElementById('asignarUsuario').value = rol;
-  document.getElementById('asignarEscuela').focus();
+  // Scroll to assign section and pre-select distrital if applicable
+  const selDist = document.getElementById('asignarDistriталь');
+  if (selDist && rol && rol.startsWith('DISTRITAL')) {
+    selDist.value = rol;
+  }
+  const inp = document.getElementById('asignarInspectorNombre');
+  if (inp) inp.focus();
+  document.querySelector('.admin-section:last-child').scrollIntoView({ behavior: 'smooth' });
 }
 
 function asignarEscuela() {
-  const usuario = document.getElementById('asignarUsuario').value;
+  const distrital = document.getElementById('asignarDistriталь') ? document.getElementById('asignarDistriталь').value : '';
+  const nombreInspector = (document.getElementById('asignarInspectorNombre') ? document.getElementById('asignarInspectorNombre').value.trim() : '').toUpperCase();
   const escuela = document.getElementById('asignarEscuela').value.trim();
-  if (!usuario || !escuela) { alert('Seleccioná usuario y escribí la escuela.'); return; }
-  asignaciones[usuario] = escuela;
+  if (!distrital || !nombreInspector || !escuela) {
+    alert('Completá todos los campos: distrital, nombre del inspector y escuela.');
+    return;
+  }
+  // Clave compuesta: "NOMBRE_INSPECTOR" (el inspector busca por su nombre, que es único en la distrital)
+  asignaciones[nombreInspector] = escuela;
+  document.getElementById('asignarInspectorNombre').value = '';
   document.getElementById('asignarEscuela').value = '';
   renderUsuarios();
   renderAsignaciones();
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accion: 'asignarEscuela', usuario, escuela })
+    body: JSON.stringify({ accion: 'asignarEscuela', distrital, inspector: nombreInspector, escuela })
   });
 }
 
@@ -808,12 +824,12 @@ function renderAsignaciones() {
   const entries = Object.entries(asignaciones);
   if (!entries.length) { div.innerHTML = ''; return; }
   div.innerHTML = '<div style="font-size:0.82rem;color:var(--gris);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Asignaciones actuales</div>' +
-    entries.map(([u, e]) => `
-      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f0fdf4;border-radius:8px;margin-bottom:6px;font-size:0.87rem">
-        <span style="font-weight:600;color:var(--azul)">${u}</span>
+    entries.map(([inspector, escuela]) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#f0fdf4;border-radius:8px;margin-bottom:6px;font-size:0.87rem;flex-wrap:wrap">
+        <span style="font-weight:600;color:var(--azul)">👤 ${inspector}</span>
         <span style="color:var(--gris)">→</span>
-        <span style="color:var(--verde)">🏫 ${e}</span>
-        <button onclick="quitarAsignacion('${u}')" style="margin-left:auto;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">×</button>
+        <span style="color:#059669">🏫 ${escuela}</span>
+        <button onclick="quitarAsignacion('${inspector}')" style="margin-left:auto;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">×</button>
       </div>
     `).join('');
 }
