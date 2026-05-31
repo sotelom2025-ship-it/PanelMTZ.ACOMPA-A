@@ -472,8 +472,8 @@
 <script>
 // Intentar cargar URL guardada en localStorage; si no, usar la hardcodeada
 let SCRIPT_URL = (function(){
-  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbz26WQe-hWqXv4VkcEWkTGqYzkHD_zkDsicHOR8d2l13kqoYUEyUlQr4qTTJ6Qfx3Wrig/exec"; }
-  catch(e) { return "https://script.google.com/macros/s/AKfycbz26WQe-hWqXv4VkcEWkTGqYzkHD_zkDsicHOR8d2l13kqoYUEyUlQr4qTTJ6Qfx3Wrig/exec"; }
+  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbza_QMlM6lWFH3jgd0ZYct31loOBhq9SRdRmwKkEFyKTn5ncfgzQKR8vpOyEKCZCX2v/exec"; }
+  catch(e) { return "https://script.google.com/macros/s/AKfycbza_QMlM6lWFH3jgd0ZYct31loOBhq9SRdRmwKkEFyKTn5ncfgzQKR8vpOyEKCZCX2v/exec"; }
 })();
 
 const USUARIOS_DEFAULT = {
@@ -633,25 +633,41 @@ function filtrarHijos() {
 async function validarHijo(filaHoja, btn) {
   btn.disabled = true;
   btn.textContent = '...';
-  try {
-    await fetch(SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'validar', fila: filaHoja, validador: currentUser })
-    });
+  const callbackName = 'validarCallback_' + Date.now();
+  const script = document.createElement('script');
+  const data = encodeURIComponent(JSON.stringify({ fila: filaHoja, validador: currentUser }));
+  script.src = SCRIPT_URL + '?accion=validar&data=' + data + '&callback=' + callbackName;
+
+  const timeout = setTimeout(function() {
+    delete window[callbackName];
+    if (script.parentNode) document.body.removeChild(script);
     btn.className = 'btn-validar validado';
     btn.textContent = '✓ Validadx';
-    // Update local
     const idx = allHijos.findIndex(h => h.fila_hoja === filaHoja);
     if (idx >= 0) allHijos[idx].validado = 'SI';
-    const validados = allHijos.filter(h => h.validado === 'SI').length;
-    document.getElementById('stat-validados').textContent = validados;
-  } catch(e) {
+    document.getElementById('stat-validados').textContent = allHijos.filter(h => h.validado === 'SI').length;
+  }, 5000);
+
+  window[callbackName] = function(resp) {
+    clearTimeout(timeout);
+    delete window[callbackName];
+    if (script.parentNode) document.body.removeChild(script);
+    btn.className = 'btn-validar validado';
+    btn.textContent = '✓ Validadx';
+    const idx = allHijos.findIndex(h => h.fila_hoja === filaHoja);
+    if (idx >= 0) allHijos[idx].validado = 'SI';
+    document.getElementById('stat-validados').textContent = allHijos.filter(h => h.validado === 'SI').length;
+  };
+
+  script.onerror = function() {
+    clearTimeout(timeout);
+    delete window[callbackName];
     btn.disabled = false;
     btn.textContent = 'Validar';
     alert('Error al validar. Intentá nuevamente.');
-  }
+  };
+
+  document.body.appendChild(script);
 }
 
 // ADMIN FUNCTIONS
@@ -827,18 +843,18 @@ function probarUrl() {
     btn.disabled = false;
     btn.textContent = 'Probar y guardar';
 
-    if (data && (data.adultos !== undefined || data.hijos !== undefined)) {
+    // Aceptar cualquier respuesta válida del script (con o sin datos)
+    if (data && (data.adultos !== undefined || data.hijos !== undefined || data.status === 'ok')) {
       SCRIPT_URL = url;
       try { localStorage.setItem('mtz_script_url', url); } catch(e) {}
       ok.classList.add('visible');
       err.classList.remove('visible');
-      // Actualizar inscripcion app URL hint
       setTimeout(function() {
         cerrarConfig();
         cargarDatos();
       }, 2000);
     } else {
-      err.textContent = 'El script respondió pero con un formato inesperado.';
+      err.textContent = 'El script respondió pero con un formato inesperado. Verificá que sea el script correcto.';
       err.classList.add('visible');
     }
   };
