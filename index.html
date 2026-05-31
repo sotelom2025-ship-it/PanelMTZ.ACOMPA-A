@@ -244,6 +244,85 @@
   .loading { padding: 30px; text-align: center; color: var(--gris); font-size: 0.9rem; }
   .empty { padding: 40px; text-align: center; color: var(--gris); font-size: 0.9rem; }
 
+  .config-banner {
+    background: #fef3c7;
+    border: 1.5px solid #fbbf24;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.88rem;
+    color: #92400e;
+  }
+  .config-banner .icon { font-size: 22px; flex-shrink: 0; }
+  .config-banner .text { flex: 1; }
+  .config-banner .text strong { display: block; font-weight: 700; margin-bottom: 2px; }
+  .config-banner a { color: var(--azul); font-weight: 600; text-decoration: underline; cursor: pointer; }
+
+  .config-modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .config-modal-overlay.open { display: flex; }
+  .config-modal {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .config-modal h3 {
+    font-size: 1rem; font-weight: 700; color: var(--azul);
+    margin-bottom: 6px;
+  }
+  .config-modal p { font-size: 0.85rem; color: var(--gris); margin-bottom: 16px; line-height: 1.5; }
+  .config-modal input {
+    width: 100%; padding: 10px 12px;
+    border: 1.5px solid var(--borde); border-radius: 8px;
+    font-size: 0.88rem; outline: none;
+    transition: border-color 0.2s; margin-bottom: 12px;
+    font-family: monospace;
+  }
+  .config-modal input:focus { border-color: var(--azul); }
+  .config-modal .status-ok {
+    background: #d1fae5; color: #065f46;
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 0.87rem; font-weight: 600;
+    display: none; align-items: center; gap: 8px;
+    margin-bottom: 12px;
+  }
+  .config-modal .status-ok.visible { display: flex; }
+  .config-modal .status-err {
+    background: #fee2e2; color: #dc2626;
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 0.87rem; display: none; margin-bottom: 12px;
+  }
+  .config-modal .status-err.visible { display: block; }
+  .config-modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+  .btn-probar {
+    flex: 1; padding: 10px; background: var(--azul); color: white;
+    border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 700;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .btn-probar:hover { background: var(--azul-light); }
+  .btn-probar:disabled { background: #9ca3af; cursor: not-allowed; }
+  .btn-cancelar {
+    padding: 10px 16px; background: white; color: var(--gris);
+    border: 1.5px solid var(--borde); border-radius: 8px;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-cancelar:hover { background: #f3f4f6; }
+  .nav-item.config-btn { border-top: 1px solid #e5e7eb; margin-top: 8px; padding-top: 14px; }
+
   @media(max-width: 768px) {
     .sidebar { display: none; }
     .content { padding: 16px; }
@@ -289,6 +368,9 @@
       </div>
       <div class="nav-item admin-only" onclick="showView('admin')" id="nav-admin" style="display:none">
         <span class="nav-icon">⚙️</span> Usuarios / Admin
+      </div>
+      <div class="nav-item config-btn" onclick="abrirConfig()">
+        <span class="nav-icon">🔗</span> Configurar URL
       </div>
     </nav>
     <button class="btn-logout" onclick="logout()">Cerrar sesión</button>
@@ -371,8 +453,28 @@
   </div>
 </div>
 
+<!-- CONFIG MODAL -->
+<div class="config-modal-overlay" id="configModal">
+  <div class="config-modal">
+    <h3>🔗 Configurar conexión con Google Sheets</h3>
+    <p>Pegá la URL de tu Google Apps Script. La URL termina en <strong>/exec</strong>.<br>
+    Podés obtenerla en <em>Apps Script → Implementar → Administrar implementaciones</em>.</p>
+    <input type="text" id="configUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    <div class="status-ok" id="configOk">✓ Conexión verificada. URL guardada correctamente.</div>
+    <div class="status-err" id="configErr"></div>
+    <div class="config-modal-actions">
+      <button class="btn-probar" id="btnProbar" onclick="probarUrl()">Probar y guardar</button>
+      <button class="btn-cancelar" onclick="cerrarConfig()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz26WQe-hWqXv4VkcEWkTGqYzkHD_zkDsicHOR8d2l13kqoYUEyUlQr4qTTJ6Qfx3Wrig/exec";
+// Intentar cargar URL guardada en localStorage; si no, usar la hardcodeada
+let SCRIPT_URL = (function(){
+  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbz26WQe-hWqXv4VkcEWkTGqYzkHD_zkDsicHOR8d2l13kqoYUEyUlQr4qTTJ6Qfx3Wrig/exec"; }
+  catch(e) { return "https://script.google.com/macros/s/AKfycbz26WQe-hWqXv4VkcEWkTGqYzkHD_zkDsicHOR8d2l13kqoYUEyUlQr4qTTJ6Qfx3Wrig/exec"; }
+})();
 
 const USUARIOS_DEFAULT = {
   "DISTRITAL 1": "dist1pass",
@@ -430,10 +532,18 @@ function showView(name) {
   document.getElementById('topTitle').textContent = titles[name] || name;
 }
 
-async function cargarDatos() {
-  try {
-    const res = await fetch(SCRIPT_URL + '?accion=listar', { method: 'GET' });
-    const data = await res.json();
+function cargarDatos() {
+  document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading">Cargando datos...</div>';
+  document.getElementById('tablaHijosWrap').innerHTML = '<div class="loading">Cargando datos...</div>';
+
+  // JSONP para evitar CORS con Google Apps Script
+  const callbackName = 'mtzCallback_' + Date.now();
+  const script = document.createElement('script');
+  script.src = SCRIPT_URL + '?accion=listar&callback=' + callbackName;
+
+  window[callbackName] = function(data) {
+    delete window[callbackName];
+    document.body.removeChild(script);
     allAdultos = data.adultos || [];
     allHijos = data.hijos || [];
     renderAdultos(allAdultos);
@@ -442,9 +552,16 @@ async function cargarDatos() {
     document.getElementById('stat-hijos').textContent = allHijos.length;
     const validados = allHijos.filter(h => h.validado === 'SI').length;
     document.getElementById('stat-validados').textContent = validados;
-  } catch(e) {
-    document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading">Error cargando datos. Verificá la URL del script.</div>';
-  }
+  };
+
+  script.onerror = function() {
+    delete window[callbackName];
+    document.body.removeChild(script);
+    document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading">Error al cargar datos. Revisá que el script esté publicado como "Cualquier persona".</div>';
+    document.getElementById('tablaHijosWrap').innerHTML = '';
+  };
+
+  document.body.appendChild(script);
 }
 
 function renderAdultos(datos) {
@@ -657,6 +774,91 @@ function mostrarEscuelaInspector() {
     document.querySelector('.content').prepend(info);
   }
 }
+
+// ============================================================
+//  CONFIGURACIÓN DE URL
+// ============================================================
+function abrirConfig() {
+  document.getElementById('configUrlInput').value = SCRIPT_URL;
+  document.getElementById('configOk').classList.remove('visible');
+  document.getElementById('configErr').classList.remove('visible');
+  document.getElementById('configModal').classList.add('open');
+}
+
+function cerrarConfig() {
+  document.getElementById('configModal').classList.remove('open');
+}
+
+function probarUrl() {
+  const url = document.getElementById('configUrlInput').value.trim();
+  const ok = document.getElementById('configOk');
+  const err = document.getElementById('configErr');
+  const btn = document.getElementById('btnProbar');
+
+  ok.classList.remove('visible');
+  err.classList.remove('visible');
+
+  if (!url || !url.startsWith('https://script.google.com')) {
+    err.textContent = 'La URL no parece válida. Debe empezar con https://script.google.com';
+    err.classList.add('visible');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Probando...';
+
+  const callbackName = 'testCallback_' + Date.now();
+  const script = document.createElement('script');
+  script.src = url + '?accion=listar&callback=' + callbackName;
+
+  const timeout = setTimeout(function() {
+    delete window[callbackName];
+    if (script.parentNode) document.body.removeChild(script);
+    btn.disabled = false;
+    btn.textContent = 'Probar y guardar';
+    err.textContent = 'No se pudo conectar. Verificá que el script esté publicado como "Cualquier persona".';
+    err.classList.add('visible');
+  }, 8000);
+
+  window[callbackName] = function(data) {
+    clearTimeout(timeout);
+    delete window[callbackName];
+    if (script.parentNode) document.body.removeChild(script);
+    btn.disabled = false;
+    btn.textContent = 'Probar y guardar';
+
+    if (data && (data.adultos !== undefined || data.hijos !== undefined)) {
+      SCRIPT_URL = url;
+      try { localStorage.setItem('mtz_script_url', url); } catch(e) {}
+      ok.classList.add('visible');
+      err.classList.remove('visible');
+      // Actualizar inscripcion app URL hint
+      setTimeout(function() {
+        cerrarConfig();
+        cargarDatos();
+      }, 2000);
+    } else {
+      err.textContent = 'El script respondió pero con un formato inesperado.';
+      err.classList.add('visible');
+    }
+  };
+
+  script.onerror = function() {
+    clearTimeout(timeout);
+    delete window[callbackName];
+    btn.disabled = false;
+    btn.textContent = 'Probar y guardar';
+    err.textContent = 'Error al conectar. Verificá la URL y que el script esté publicado.';
+    err.classList.add('visible');
+  };
+
+  document.body.appendChild(script);
+}
+
+// Cerrar modal al hacer click fuera
+document.getElementById('configModal').addEventListener('click', function(e) {
+  if (e.target === this) cerrarConfig();
+});
 </script>
 </body>
 </html>
