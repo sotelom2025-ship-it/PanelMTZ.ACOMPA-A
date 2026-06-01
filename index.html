@@ -803,7 +803,7 @@ function renderHijos(datos) {
     const esVal = h.validado === 'SI';
     const escHijx = abreviarEscuela(h.tipo_escuela, h.numero_escuela);
     html += `<tr>
-      <td style="font-weight:600">${h.nombre}</td>
+      <td style="font-weight:600">${h.nombre}${h.apellido ? ' ' + h.apellido : ''}</td>
       <td>${h.dni || '—'}</td>
       <td>${escHijx}</td>
       <td>${h.edad}</td>
