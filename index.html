@@ -505,44 +505,71 @@
   </div>
 </div>
 
+
 <script>
-// Intentar cargar URL guardada en localStorage; si no, usar la hardcodeada
+// ── URL ─────────────────────────────────────────────────────────
 let SCRIPT_URL = (function(){
   try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbza_QMlM6lWFH3jgd0ZYct31loOBhq9SRdRmwKkEFyKTn5ncfgzQKR8vpOyEKCZCX2v/exec"; }
   catch(e) { return "https://script.google.com/macros/s/AKfycbza_QMlM6lWFH3jgd0ZYct31loOBhq9SRdRmwKkEFyKTn5ncfgzQKR8vpOyEKCZCX2v/exec"; }
 })();
 
+// ── Prefijos de tipo de escuela ─────────────────────────────────
+const PREFIJOS = {
+  'primaria':          'EP',
+  'secundaria':        'EES',
+  'jardín de infantes':'JI',
+  'jardin de infantes':'JI',
+  'escuela técnica':   'EET',
+  'escuela tecnica':   'EET',
+  'escuela especial':  'EEE',
+  'isfdyt':            'ISFDyT',
+  'isfd':              'ISFD',
+  'cens':              'CENS',
+  'epa':               'EPA',
+  'estética':          'EST',
+  'estetica':          'EST'
+};
+
+function abreviarEscuela(tipo, numero) {
+  if (!tipo) return numero || '';
+  const prefijo = PREFIJOS[tipo.toLowerCase()] || tipo;
+  return numero ? prefijo + ' ' + numero : prefijo;
+}
+
+// ── Usuarios ────────────────────────────────────────────────────
 const USUARIOS_DEFAULT = {
-  "DISTRITAL 1": "dist1pass",
-  "DISTRITAL 2": "dist2pass",
-  "DISTRITAL 3": "dist3pass",
+  "DISTRITAL 1":   "dist1pass",
+  "DISTRITAL 2":   "dist2pass",
+  "DISTRITAL 3":   "dist3pass",
   "CONSEJO ESCOLAR": "consejopass"
 };
 
-let currentUser = null;
+let currentUser      = null;
 let currentInspector = null;
-let allAdultos = [];
-let allHijos = [];
-let extraUsers = {};
-let asignaciones = {};
+let allAdultos       = [];
+let allHijos         = [];
+let hijosFiltrados   = []; // los que el inspector puede ver
+let extraUsers       = {};
+let asignaciones     = {};
 
+// ── Login helpers ───────────────────────────────────────────────
 function toggleInspectorField() {
-  const user = document.getElementById('loginUser').value;
+  const user  = document.getElementById('loginUser').value;
   const field = document.getElementById('inspectorField');
-  const esDistribtal = user.startsWith('DISTRITAL');
-  field.style.display = esDistribtal ? 'block' : 'none';
-  if (esDistribtal) buscarEscuelaInspector();
+  const esDistrital = user.startsWith('DISTRITAL');
+  field.style.display = esDistrital ? 'block' : 'none';
+  if (esDistrital) buscarEscuelaInspector();
 }
 
 function buscarEscuelaInspector() {
-  const nombre = (document.getElementById('loginInspector').value || '').trim().toUpperCase();
+  const nombre     = (document.getElementById('loginInspector').value || '').trim().toUpperCase();
   const escuelaDiv = document.getElementById('inspectorEscuela');
-  const escuelaText = document.getElementById('inspectorEscuelaText');
+  const escuelaTxt = document.getElementById('inspectorEscuelaText');
   if (!nombre) { escuelaDiv.style.display = 'none'; return; }
-  const escRaw = asignaciones[nombre];
+  const escRaw   = asignaciones[nombre];
   const escuelas = escRaw ? (Array.isArray(escRaw) ? escRaw : [escRaw]) : [];
   if (escuelas.length > 0) {
-    escuelaText.textContent = escuelas.length === 1
+    escuelaTxt.textContent = escuelas.length === 1
       ? 'Escuela asignada: ' + escuelas[0]
       : 'Escuelas asignadas: ' + escuelas.join(', ');
     escuelaDiv.style.display = 'block';
@@ -551,55 +578,53 @@ function buscarEscuelaInspector() {
   }
 }
 
+function togglePassVis() {
+  const inp  = document.getElementById('loginPass');
+  const icon = document.getElementById('eyeIcon');
+  if (inp.type === 'password') { inp.type = 'text';     icon.textContent = '🙈'; }
+  else                         { inp.type = 'password'; icon.textContent = '👁️'; }
+}
+
+// ── Login / Logout ───────────────────────────────────────────────
 function doLogin() {
-  const user = document.getElementById('loginUser').value;
-  const pass = document.getElementById('loginPass').value;
+  const user      = document.getElementById('loginUser').value;
+  const pass      = document.getElementById('loginPass').value;
   const inspector = (document.getElementById('loginInspector') ? document.getElementById('loginInspector').value.trim() : '');
-  const err = document.getElementById('loginError');
+  const err       = document.getElementById('loginError');
   err.style.display = 'none';
   if (!user) { err.textContent = 'Seleccioná un usuario.'; err.style.display = 'block'; return; }
 
-  // Si no ingresó nombre de inspector, se muestra todo sin filtrar
-
   const allUsers = Object.assign({}, USUARIOS_DEFAULT, extraUsers);
   if (allUsers[user] && allUsers[user] === pass) {
-    currentUser = user;
-    currentInspector = inspector ? inspector.toUpperCase() : user;
+    currentUser      = user;
+    currentInspector = inspector ? inspector.toUpperCase() : null;
     document.getElementById('loginSection').style.display = 'none';
     document.getElementById('panelSection').classList.add('visible');
     const displayName = inspector || user;
     document.getElementById('sideUserBadge').textContent = displayName;
-    document.getElementById('topUser').textContent = displayName;
+    document.getElementById('topUser').textContent        = displayName;
     if (user === 'CONSEJO ESCOLAR') {
       document.getElementById('nav-admin').style.display = 'flex';
     }
-    cargarDatos();
-    if (user === 'CONSEJO ESCOLAR') cargarAdmin();
-    mostrarEscuelaInspector();
+    cargarDatos(); // carga todo y luego aplica filtros
   } else {
     err.textContent = 'Usuario o contraseña incorrectos.';
     err.style.display = 'block';
   }
 }
 
-function togglePassVis() {
-  const inp = document.getElementById('loginPass');
-  const icon = document.getElementById('eyeIcon');
-  if (inp.type === 'password') {
-    inp.type = 'text';
-    icon.textContent = '🙈';
-  } else {
-    inp.type = 'password';
-    icon.textContent = '👁️';
-  }
-}
-
 function logout() {
-  currentUser = null;
+  currentUser      = null;
+  currentInspector = null;
   document.getElementById('loginSection').style.display = 'flex';
   document.getElementById('panelSection').classList.remove('visible');
-  document.getElementById('loginPass').value = '';
-  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value  = '';
+  document.getElementById('loginUser').value  = '';
+  if (document.getElementById('loginInspector'))
+    document.getElementById('loginInspector').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('inspectorEscuela').style.display = 'none';
+  document.getElementById('nav-admin').style.display = 'none';
 }
 
 function showView(name) {
@@ -611,60 +636,159 @@ function showView(name) {
   document.getElementById('topTitle').textContent = titles[name] || name;
 }
 
+// ── Carga de datos ──────────────────────────────────────────────
 function cargarDatos() {
   document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading">Cargando datos...</div>';
-  document.getElementById('tablaHijosWrap').innerHTML = '<div class="loading">Cargando datos...</div>';
+  document.getElementById('tablaHijosWrap').innerHTML   = '<div class="loading">Cargando datos...</div>';
 
-  // JSONP para evitar CORS con Google Apps Script
   const callbackName = 'mtzCallback_' + Date.now();
   const script = document.createElement('script');
   script.src = SCRIPT_URL + '?accion=listar&callback=' + callbackName;
 
   window[callbackName] = function(data) {
     delete window[callbackName];
-    document.body.removeChild(script);
+    try { document.body.removeChild(script); } catch(e) {}
     allAdultos = data.adultos || [];
-    allHijos = data.hijos || [];
-    // Cargar usuarios y asignaciones desde la hoja
+    allHijos   = data.hijos   || [];
+
+    // Cargar usuarios extra desde la hoja
     if (data.usuariosExtra) {
       Object.entries(data.usuariosExtra).forEach(([k,v]) => {
         if (k) { extraUsers[k] = v; USUARIOS_DEFAULT[k] = v; }
       });
     }
+    // Cargar asignaciones desde la hoja (clave = NOMBRE_INSPECTOR en mayúsculas)
     if (data.asignaciones) {
       Object.entries(data.asignaciones).forEach(([k,v]) => {
-        asignaciones[k.toUpperCase()] = Array.isArray(v) ? v : [v];
+        const key = k.toUpperCase();
+        asignaciones[key] = Array.isArray(v) ? v : [v];
       });
     }
+
     aplicarFiltroUsuario();
-    // Si ya está logueado como inspector, re-aplicar banner con datos frescos
-    mostrarEscuelaInspector();
+    if (currentUser === 'CONSEJO ESCOLAR') cargarAdmin();
+    buscarEscuelaInspector();
   };
 
   script.onerror = function() {
     delete window[callbackName];
-    document.body.removeChild(script);
+    try { document.body.removeChild(script); } catch(e) {}
     document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading">Error al cargar datos. Revisá que el script esté publicado como "Cualquier persona".</div>';
-    document.getElementById('tablaHijosWrap').innerHTML = '';
+    document.getElementById('tablaHijosWrap').innerHTML   = '';
   };
 
   document.body.appendChild(script);
 }
 
+// ── Filtro principal según usuario ─────────────────────────────
+function getEscuelasAsignadas() {
+  if (currentUser === 'CONSEJO ESCOLAR') return [];
+  // Inspector: su propio nombre; Distrital sin inspector: null → ve todo
+  const keyLookup = currentInspector || null;
+  if (!keyLookup) return [];
+  const escRaw = asignaciones[keyLookup];
+  return escRaw ? (Array.isArray(escRaw) ? escRaw : [escRaw]) : [];
+}
+
+function escuelaMatchea(hijx, escuelasAsignadas) {
+  // Compara tipo+numero del hijx contra las escuelas asignadas
+  // Escuela asignada puede ser "Jardín de Infantes 40" o "JI 40" o "EP 12"
+  const tipoHijx = (hijx.tipo_escuela || '').toLowerCase().trim();
+  const numHijx  = (hijx.numero_escuela || '').toString().trim();
+  const abrevHijx = abreviarEscuela(tipoHijx, numHijx).toLowerCase(); // ej "ep 12"
+  const tipoNumHijx = (tipoHijx + ' ' + numHijx).trim().toLowerCase(); // ej "primaria 12"
+
+  return escuelasAsignadas.some(esc => {
+    const escNorm = esc.toLowerCase().trim();
+    // Match exacto por abreviatura
+    if (abrevHijx === escNorm) return true;
+    // Match por tipo completo + numero
+    if (tipoNumHijx === escNorm) return true;
+    // Match flexible: la asignación contiene el numero y alguna coincidencia de tipo
+    const escParts = escNorm.split(/\s+/);
+    const numEsc   = escParts[escParts.length - 1];
+    if (numEsc && numEsc === numHijx) {
+      // mismo número, verificar tipo
+      const prefijoEsc = escParts.slice(0, -1).join(' ');
+      const prefijoHijx = (PREFIJOS[tipoHijx] || tipoHijx).toLowerCase();
+      if (prefijoEsc === prefijoHijx) return true;
+      // también comparar con tipo completo
+      if (tipoHijx.includes(prefijoEsc) || prefijoEsc.includes(tipoHijx)) return true;
+    }
+    // Match parcial por número de escuela solo (fallback)
+    if (numHijx && escNorm.endsWith(' ' + numHijx)) return true;
+    return false;
+  });
+}
+
+function aplicarFiltroUsuario() {
+  // Quitar banners anteriores
+  document.querySelectorAll('.inspector-banner').forEach(el => el.remove());
+  const escuelas = getEscuelasAsignadas();
+
+  // Mostrar banner si hay escuelas asignadas
+  if (escuelas.length > 0) {
+    const info = document.createElement('div');
+    info.className = 'inspector-banner';
+    info.style = 'background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:0.87rem;color:#065f46;font-weight:600;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap';
+    const tags = escuelas.map(e => `<span style="background:#dcfce7;border-radius:20px;padding:2px 10px;font-size:0.82rem">🏫 ${e}</span>`).join(' ');
+    info.innerHTML = '<span style="font-size:20px;margin-top:2px">📋</span> <span>Escuelas asignadas: ' + tags + '</span>';
+    document.querySelector('.content').prepend(info);
+  }
+
+  // Aplicar filtro
+  if (escuelas.length > 0) {
+    // Inspector con escuelas asignadas: ver solo sus escuelas
+    hijosFiltrados = allHijos.filter(h => escuelaMatchea(h, escuelas));
+    const dnisConHijos = new Set(hijosFiltrados.map(h => h.adulto_dni).filter(Boolean));
+    const adultosFiltrados = allAdultos.filter(a => dnisConHijos.has(a.dni));
+    renderAdultos(adultosFiltrados);
+    renderHijos(hijosFiltrados);
+    document.getElementById('stat-total').textContent    = adultosFiltrados.length;
+    document.getElementById('stat-hijos').textContent    = hijosFiltrados.length;
+    document.getElementById('stat-validados').textContent = hijosFiltrados.filter(h => h.validado === 'SI').length;
+  } else {
+    // Consejo o Distrital sin inspector: ver todo
+    hijosFiltrados = allHijos;
+    renderAdultos(allAdultos);
+    renderHijos(allHijos);
+    document.getElementById('stat-total').textContent    = allAdultos.length;
+    document.getElementById('stat-hijos').textContent    = allHijos.length;
+    document.getElementById('stat-validados').textContent = allHijos.filter(h => h.validado === 'SI').length;
+  }
+}
+
+// ── Render tablas ───────────────────────────────────────────────
+// Verifica si todos los hijxs de un adulto (en los filtrados) están validados
+function adultoValidado(dni) {
+  const hijxsAdulto = hijosFiltrados.filter(h => h.adulto_dni === dni);
+  return hijxsAdulto.length > 0 && hijxsAdulto.every(h => h.validado === 'SI');
+}
+
 function renderAdultos(datos) {
   const wrap = document.getElementById('tablaAdultosWrap');
   if (!datos.length) { wrap.innerHTML = '<div class="empty">No hay inscripciones aún.</div>'; return; }
-  let html = '<table><thead><tr><th>Nombre</th><th>DNI</th><th>Localidad</th><th>Teléfono</th><th>Dirección</th><th>Total hijxs</th><th>Escuela origen</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Nombre</th><th>DNI</th><th>Localidad</th><th>Teléfono</th><th>Hijxs</th><th>Escuela origen</th><th>Inscripción</th></tr></thead><tbody>';
   for (const a of datos) {
-    const cantHijos = allHijos.filter(h => h.adulto_dni === a.dni).length;
-    html += `<tr>
+    const hijxsAdulto = hijosFiltrados.filter(h => h.adulto_dni === a.dni);
+    const cant        = hijxsAdulto.length;
+    const validados   = hijxsAdulto.filter(h => h.validado === 'SI').length;
+    const completo    = cant > 0 && validados === cant;
+    const escOrigen   = abreviarEscuela(a.escuela_tipo, a.escuela_numero);
+    const rowStyle    = completo ? 'background:#f0fdf4;' : '';
+    const estadoBadge = completo
+      ? '<span class="badge badge-green" style="font-size:0.8rem">✓ Validadx</span>'
+      : cant === 0
+        ? '<span style="color:var(--gris);font-size:0.82rem">—</span>'
+        : `<span style="font-size:0.82rem;color:#d97706">${validados}/${cant} validadxs</span>`;
+    html += `<tr style="${rowStyle}">
       <td style="font-weight:600">${a.nombre}</td>
       <td>${a.dni}</td>
       <td>${a.localidad}</td>
       <td>${a.telefono}</td>
-      <td style="font-size:0.82rem;color:var(--gris)">${a.direccion}</td>
-      <td><span class="badge badge-blue">${cantHijos}</span></td>
-      <td style="font-size:0.82rem">${a.escuela_tipo} ${a.escuela_numero}</td>
+      <td><span class="badge badge-blue">${cant}</span></td>
+      <td style="font-size:0.82rem">${escOrigen}</td>
+      <td>${estadoBadge}</td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -674,82 +798,96 @@ function renderAdultos(datos) {
 function renderHijos(datos) {
   const wrap = document.getElementById('tablaHijosWrap');
   if (!datos.length) { wrap.innerHTML = '<div class="empty">No hay hijxs registradxs.</div>'; return; }
-  let html = '<table><thead><tr><th>Nombre hijx</th><th>DNI</th><th>Tipo escuela</th><th>N° Escuela</th><th>Edad</th><th>Grado/Año</th><th>Adulto</th><th>Validación</th></tr></thead><tbody>';
-  for (let i = 0; i < datos.length; i++) {
-    const h = datos[i];
-    const esValidado = h.validado === 'SI';
+  let html = '<table><thead><tr><th>Nombre hijx</th><th>DNI</th><th>Escuela</th><th>Edad</th><th>Grado/Año</th><th>Adulto</th><th>Validación</th></tr></thead><tbody>';
+  for (const h of datos) {
+    const esVal = h.validado === 'SI';
+    const escHijx = abreviarEscuela(h.tipo_escuela, h.numero_escuela);
     html += `<tr>
       <td style="font-weight:600">${h.nombre}</td>
       <td>${h.dni || '—'}</td>
-      <td>${h.tipo_escuela}</td>
-      <td>${h.numero_escuela || '—'}</td>
+      <td>${escHijx}</td>
       <td>${h.edad}</td>
       <td>${h.grado || '—'}</td>
       <td style="font-size:0.82rem;color:var(--gris)">${h.adulto_nombre}</td>
-      <td>
-        ${esValidado
-          ? '<span class="badge badge-green">✓ Validadx</span>'
-          : `<button class="btn-validar" onclick="validarHijo(${h.fila_hoja}, this)">Validar</button>`
-        }
-      </td>
+      <td>${esVal
+        ? '<span class="badge badge-green">✓ Validadx</span>'
+        : `<button class="btn-validar" onclick="validarHijo(${h.fila_hoja}, this)">Validar</button>`
+      }</td>
     </tr>`;
   }
   html += '</tbody></table>';
   wrap.innerHTML = html;
 }
 
+// ── Búsqueda (sobre datos ya filtrados por inspector) ───────────
 function filtrarAdultos() {
-  const q = document.getElementById('buscarAdulto').value.toLowerCase();
-  const filtered = allAdultos.filter(a =>
-    a.nombre.toLowerCase().includes(q) || a.dni.includes(q) || a.localidad.toLowerCase().includes(q)
+  const q = document.getElementById('buscarAdulto').value.toLowerCase().trim();
+  if (!q) { aplicarFiltroUsuario(); return; }
+  const base = getEscuelasAsignadas().length > 0
+    ? allAdultos.filter(a => {
+        const dnisOK = new Set(hijosFiltrados.map(h => h.adulto_dni));
+        return dnisOK.has(a.dni);
+      })
+    : allAdultos;
+  const filtered = base.filter(a =>
+    (a.nombre || '').toLowerCase().includes(q) ||
+    (a.dni || '').includes(q) ||
+    (a.localidad || '').toLowerCase().includes(q)
   );
   renderAdultos(filtered);
 }
 
 function filtrarHijos() {
-  const q = document.getElementById('buscarHijo').value.toLowerCase();
-  const filtered = allHijos.filter(h =>
-    h.nombre.toLowerCase().includes(q) ||
+  const q = document.getElementById('buscarHijo').value.toLowerCase().trim();
+  if (!q) { aplicarFiltroUsuario(); return; }
+  const filtered = hijosFiltrados.filter(h =>
+    (h.nombre || '').toLowerCase().includes(q) ||
+    (h.dni || '').includes(q) ||
+    abreviarEscuela(h.tipo_escuela, h.numero_escuela).toLowerCase().includes(q) ||
     (h.tipo_escuela || '').toLowerCase().includes(q) ||
-    (h.numero_escuela || '').includes(q) ||
+    (h.numero_escuela || '').toString().includes(q) ||
     (h.adulto_nombre || '').toLowerCase().includes(q)
   );
   renderHijos(filtered);
 }
 
+// ── Validar hijx ────────────────────────────────────────────────
 async function validarHijo(filaHoja, btn) {
-  btn.disabled = true;
+  btn.disabled  = true;
   btn.textContent = '...';
   const callbackName = 'validarCallback_' + Date.now();
-  const script = document.createElement('script');
-  const data = encodeURIComponent(JSON.stringify({ fila: filaHoja, validador: currentUser }));
-  script.src = SCRIPT_URL + '?accion=validar&data=' + data + '&callback=' + callbackName;
+  const script  = document.createElement('script');
+  const data    = encodeURIComponent(JSON.stringify({ fila: filaHoja, validador: currentInspector || currentUser }));
+  script.src    = SCRIPT_URL + '?accion=validar&data=' + data + '&callback=' + callbackName;
 
   const timeout = setTimeout(function() {
-    delete window[callbackName];
-    if (script.parentNode) document.body.removeChild(script);
-    btn.className = 'btn-validar validado';
-    btn.textContent = '✓ Validadx';
-    const idx = allHijos.findIndex(h => h.fila_hoja === filaHoja);
-    if (idx >= 0) allHijos[idx].validado = 'SI';
-    document.getElementById('stat-validados').textContent = allHijos.filter(h => h.validado === 'SI').length;
-  }, 5000);
-
-  window[callbackName] = function(resp) {
     clearTimeout(timeout);
     delete window[callbackName];
-    if (script.parentNode) document.body.removeChild(script);
-    btn.className = 'btn-validar validado';
-    btn.textContent = '✓ Validadx';
+    try { if (script.parentNode) document.body.removeChild(script); } catch(e) {}
+    // Marcar igualmente en UI
     const idx = allHijos.findIndex(h => h.fila_hoja === filaHoja);
     if (idx >= 0) allHijos[idx].validado = 'SI';
-    document.getElementById('stat-validados').textContent = allHijos.filter(h => h.validado === 'SI').length;
+    aplicarFiltroUsuario();
+  }, 6000);
+
+  window[callbackName] = function() {
+    clearTimeout(timeout);
+    delete window[callbackName];
+    try { if (script.parentNode) document.body.removeChild(script); } catch(e) {}
+    const idx = allHijos.findIndex(h => h.fila_hoja === filaHoja);
+    if (idx >= 0) allHijos[idx].validado = 'SI';
+    document.getElementById('stat-validados').textContent = hijosFiltrados.filter(h => h.validado === 'SI').length;
+    btn.className   = 'btn-validar validado';
+    btn.textContent = '✓ Validadx';
+    btn.disabled    = false;
+    // Re-renderizar adultos para actualizar estado de inscripción
+    aplicarFiltroUsuario();
   };
 
   script.onerror = function() {
     clearTimeout(timeout);
     delete window[callbackName];
-    btn.disabled = false;
+    btn.disabled    = false;
     btn.textContent = 'Validar';
     alert('Error al validar. Intentá nuevamente.');
   };
@@ -757,7 +895,7 @@ async function validarHijo(filaHoja, btn) {
   document.body.appendChild(script);
 }
 
-// ADMIN FUNCTIONS
+// ── ADMIN ────────────────────────────────────────────────────────
 function cargarAdmin() {
   renderUsuarios();
   actualizarSelectAsignar();
@@ -766,89 +904,91 @@ function cargarAdmin() {
 
 function renderUsuarios() {
   const lista = document.getElementById('listaUsuarios');
-  const todos = [
-    { nombre: 'Distrital 1', rol: 'DISTRITAL 1', fijo: true },
-    { nombre: 'Distrital 2', rol: 'DISTRITAL 2', fijo: true },
-    { nombre: 'Distrital 3', rol: 'DISTRITAL 3', fijo: true },
-    ...Object.entries(extraUsers).map(([k,v]) => ({ nombre: k, rol: k, fijo: false }))
+  const fijos = [
+    { nombre: 'Distrital 1', rol: 'DISTRITAL 1' },
+    { nombre: 'Distrital 2', rol: 'DISTRITAL 2' },
+    { nombre: 'Distrital 3', rol: 'DISTRITAL 3' }
   ];
-  if (!todos.length) { lista.innerHTML = '<div class="empty">No hay usuarios extra.</div>'; return; }
-  lista.innerHTML = todos.map(u => `
-    <div class="user-row">
+  const extras = Object.entries(extraUsers).map(([k,v]) => ({ nombre: k, rol: k, fijo: false }));
+  const todos  = [...fijos.map(u => ({...u, fijo:true})), ...extras];
+
+  lista.innerHTML = todos.map(u => {
+    const escArr = asignaciones[u.rol] || [];
+    const lista2 = Array.isArray(escArr) ? escArr : [escArr];
+    const escHtml = lista2.length
+      ? `<div class="user-escuela">🏫 ${lista2.join(' · ')}</div>` : '';
+    return `<div class="user-row">
       <div class="user-info">
         <div class="user-name">${u.nombre}</div>
         <div class="user-role">${u.rol}</div>
-        ${asignaciones[u.rol] ? `<div class="user-escuela">🏫 ${Array.isArray(asignaciones[u.rol]) ? asignaciones[u.rol].join(', ') : asignaciones[u.rol]}</div>` : ''}
+        ${escHtml}
       </div>
       ${!u.fijo ? `<button class="btn-small btn-del" onclick="quitarUsuario('${u.nombre}')">Quitar</button>` : ''}
       <button class="btn-small btn-asignar" onclick="abrirAsignarEscuela('${u.rol}')">Asignar escuela</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function agregarUsuario() {
   const nombre = document.getElementById('nuevoNombre').value.trim();
-  const rol = document.getElementById('nuevoRol').value;
-  const pass = document.getElementById('nuevaPass').value;
+  const rol    = document.getElementById('nuevoRol').value;
+  const pass   = document.getElementById('nuevaPass').value;
   if (!nombre || !rol || !pass) { alert('Completá todos los campos.'); return; }
-  extraUsers[nombre] = pass;
-  USUARIOS_DEFAULT[nombre] = pass;
+  const key = nombre.toUpperCase();
+  extraUsers[key]         = pass;
+  USUARIOS_DEFAULT[key]   = pass;
   document.getElementById('nuevoNombre').value = '';
-  document.getElementById('nuevaPass').value = '';
+  document.getElementById('nuevaPass').value   = '';
   renderUsuarios();
   actualizarSelectAsignar();
-  // Persist to sheet
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accion: 'nuevoUsuario', nombre, rol, pass })
+    body: JSON.stringify({ accion: 'nuevoUsuario', nombre: key, rol, pass })
   });
 }
 
 function quitarUsuario(nombre) {
   if (!confirm('¿Quitar usuario ' + nombre + '?')) return;
-  delete extraUsers[nombre];
-  delete USUARIOS_DEFAULT[nombre];
+  const key = nombre.toUpperCase();
+  delete extraUsers[key];
+  delete USUARIOS_DEFAULT[key];
   renderUsuarios();
   actualizarSelectAsignar();
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accion: 'quitarUsuario', nombre })
+    body: JSON.stringify({ accion: 'quitarUsuario', nombre: key })
   });
 }
 
 function abrirAsignarEscuela(rol) {
-  // Scroll to assign section and pre-select distrital if applicable
   const selDist = document.getElementById('asignarDistriталь');
-  if (selDist && rol && rol.startsWith('DISTRITAL')) {
-    selDist.value = rol;
+  if (selDist && rol && rol.startsWith('DISTRITAL')) selDist.value = rol;
+  else if (selDist) {
+    // Es inspector — pre-llenar nombre
+    document.getElementById('asignarInspectorNombre').value = rol;
   }
-  const inp = document.getElementById('asignarInspectorNombre');
-  if (inp) inp.focus();
   document.querySelector('.admin-section:last-child').scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('asignarEscuela').focus();
 }
 
 function asignarEscuela() {
-  const distrital = document.getElementById('asignarDistriталь') ? document.getElementById('asignarDistriталь').value : '';
-  const nombreInspector = (document.getElementById('asignarInspectorNombre') ? document.getElementById('asignarInspectorNombre').value.trim() : '').toUpperCase();
-  const escuela = document.getElementById('asignarEscuela').value.trim();
+  const distrital       = document.getElementById('asignarDistriталь')?.value || '';
+  const nombreInspector = (document.getElementById('asignarInspectorNombre')?.value || '').trim().toUpperCase();
+  const escuela         = document.getElementById('asignarEscuela').value.trim();
   if (!distrital || !nombreInspector || !escuela) {
     alert('Completá todos los campos: distrital, nombre del inspector y escuela.');
     return;
   }
-  // Permite múltiples escuelas por inspector (array)
-  if (!asignaciones[nombreInspector]) {
-    asignaciones[nombreInspector] = [];
-  }
-  if (!asignaciones[nombreInspector].includes(escuela)) {
-    asignaciones[nombreInspector].push(escuela);
-  } else {
+  if (!asignaciones[nombreInspector]) asignaciones[nombreInspector] = [];
+  if (asignaciones[nombreInspector].includes(escuela)) {
     alert('Esa escuela ya está asignada a este inspector.');
     return;
   }
+  asignaciones[nombreInspector].push(escuela);
   document.getElementById('asignarInspectorNombre').value = '';
-  document.getElementById('asignarEscuela').value = '';
+  document.getElementById('asignarEscuela').value         = '';
   renderUsuarios();
   renderAsignaciones();
   fetch(SCRIPT_URL, {
@@ -859,20 +999,19 @@ function asignarEscuela() {
 }
 
 function renderAsignaciones() {
-  const div = document.getElementById('listaAsignaciones');
+  const div     = document.getElementById('listaAsignaciones');
   const entries = Object.entries(asignaciones);
   if (!entries.length) { div.innerHTML = ''; return; }
   div.innerHTML = '<div style="font-size:0.82rem;color:var(--gris);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Asignaciones actuales</div>' +
     entries.map(([inspector, escuelas]) => {
       const lista = Array.isArray(escuelas) ? escuelas : [escuelas];
-      const tags = lista.map(e => `
+      const tags  = lista.map(e => `
         <span style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;color:#065f46;border-radius:20px;padding:3px 10px;font-size:0.82rem;font-weight:500">
           🏫 ${e}
-          <button onclick="quitarEscuelaInspector('${inspector}','${e.replace(/'/g,"\\'")}')"
+          <button onclick="quitarEscuelaInspector('${inspector}','${e.replace(/'/g,"\\'")}')"\
             style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;line-height:1;padding:0 2px">×</button>
         </span>`).join('');
-      return `
-      <div style="padding:10px 12px;background:#f0fdf4;border-radius:8px;margin-bottom:8px;font-size:0.87rem">
+      return `<div style="padding:10px 12px;background:#f0fdf4;border-radius:8px;margin-bottom:8px;font-size:0.87rem">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <span style="font-weight:700;color:var(--azul)">👤 ${inspector}</span>
           <button onclick="quitarAsignacion('${inspector}')"
@@ -883,8 +1022,9 @@ function renderAsignaciones() {
     }).join('');
 }
 
-function quitarAsignacion(usuario) {
-  delete asignaciones[usuario];
+function quitarAsignacion(inspector) {
+  if (!confirm('¿Quitar todas las escuelas de ' + inspector + '?')) return;
+  delete asignaciones[inspector];
   renderUsuarios();
   renderAsignaciones();
 }
@@ -898,76 +1038,15 @@ function quitarEscuelaInspector(inspector, escuela) {
 }
 
 function actualizarSelectAsignar() {
-  const sel = document.getElementById('asignarUsuario');
+  const sel   = document.getElementById('asignarUsuario');
+  if (!sel) return;
   const fijos = ['DISTRITAL 1','DISTRITAL 2','DISTRITAL 3'];
-  const extras = Object.keys(extraUsers);
-  const todos = [...fijos, ...extras];
+  const todos = [...fijos, ...Object.keys(extraUsers)];
   sel.innerHTML = '<option value="">— Seleccionar usuario —</option>' +
     todos.map(u => `<option value="${u}">${u}</option>`).join('');
 }
 
-// Obtiene las escuelas asignadas al usuario actual (array o vacío)
-function getEscuelasAsignadas() {
-  if (currentUser === 'CONSEJO ESCOLAR') return [];
-  const keyLookup = currentInspector || currentUser;
-  const escRaw = asignaciones[keyLookup];
-  return escRaw ? (Array.isArray(escRaw) ? escRaw : [escRaw]) : [];
-}
-
-// Muestra banner de escuelas y aplica filtros según usuario
-function aplicarFiltroUsuario() {
-  // Banner
-  document.querySelectorAll('.inspector-banner').forEach(el => el.remove());
-  const escuelas = getEscuelasAsignadas();
-
-  if (escuelas.length > 0) {
-    const info = document.createElement('div');
-    info.className = 'inspector-banner';
-    info.style = 'background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:0.87rem;color:#065f46;font-weight:600;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap';
-    const tags = escuelas.map(e => `<span style="background:#dcfce7;border-radius:20px;padding:2px 10px;font-size:0.82rem">🏫 ${e}</span>`).join(' ');
-    info.innerHTML = '<span style="font-size:20px;margin-top:2px">📋</span> <span>Escuelas asignadas: ' + tags + '</span>';
-    document.querySelector('.content').prepend(info);
-  }
-
-  // Filtrar hijxs y adultos
-  let hijxsFiltrados = allHijos;
-  let adultosFiltrados = allAdultos;
-
-  if (escuelas.length > 0) {
-    // Inspector con escuelas asignadas: filtrar por escuela de orixgen del hijx
-    hijxsFiltrados = allHijos.filter(h => {
-      const tipoNum = ((h.tipo_escuela || '') + ' ' + (h.numero_escuela || '')).toLowerCase();
-      return escuelas.some(esc => {
-        const escLower = esc.toLowerCase();
-        return tipoNum.includes(escLower.replace(/\s+/g, '')) ||
-               escLower.includes(tipoNum.replace(/\s+/g, '')) ||
-               tipoNum.includes(escLower.split(' ').pop());
-      });
-    });
-    // Filtrar adultos: solo los que tienen al menos un hijx en las escuelas asignadas
-    const dnisConHijos = new Set(hijxsFiltrados.map(h => h.adulto_dni).filter(Boolean));
-    adultosFiltrados = allAdultos.filter(a => dnisConHijos.has(a.dni));
-  }
-
-  renderAdultos(adultosFiltrados);
-  renderHijos(hijxsFiltrados);
-  document.getElementById('stat-total').textContent = adultosFiltrados.length;
-  document.getElementById('stat-hijos').textContent = hijxsFiltrados.length;
-  const validados = hijxsFiltrados.filter(h => h.validado === 'SI').length;
-  document.getElementById('stat-validados').textContent = validados;
-}
-
-function mostrarEscuelaInspector() {
-  aplicarFiltroUsuario();
-}
-
-function filtrarPorEscuelasAsignadas(escuelas) {
-  aplicarFiltroUsuario();
-}
-
-// ============================================================
-//  CONFIGURACIÓN DE URL
-// ============================================================
+// ── Config URL ──────────────────────────────────────────────────
 function abrirConfig() {
   document.getElementById('configUrlInput').value = SCRIPT_URL;
   document.getElementById('configOk').classList.remove('visible');
@@ -979,94 +1058,30 @@ function cerrarConfig() {
   document.getElementById('configModal').classList.remove('open');
 }
 
-function probarUrl() {
+function guardarConfig() {
   const url = document.getElementById('configUrlInput').value.trim();
-  const ok = document.getElementById('configOk');
+  const ok  = document.getElementById('configOk');
   const err = document.getElementById('configErr');
-  const btn = document.getElementById('btnProbar');
-
-  ok.classList.remove('visible');
-  err.classList.remove('visible');
-
-  // Validar formato básico
-  if (!url || !url.includes('script.google.com') || !url.endsWith('/exec')) {
-    err.textContent = 'La URL no es válida. Debe ser de Google Apps Script y terminar en /exec';
-    err.classList.add('visible');
+  if (!url || !url.startsWith('https://script.google.com')) {
+    if (err) { err.textContent = 'URL inválida.'; err.classList.add('visible'); }
     return;
   }
-
-  btn.disabled = true;
-  btn.textContent = 'Conectando...';
-
-  const callbackName = 'testCallback_' + Date.now();
-  const script = document.createElement('script');
-  script.src = url + '?accion=listar&callback=' + callbackName;
-
-  // Si en 10 segundos no responde, igual guardamos (puede ser lentitud del script)
-  const timeout = setTimeout(function() {
-    delete window[callbackName];
-    if (script.parentNode) document.body.removeChild(script);
-    // Guardar igual — si la inscripción funciona con esta URL, el panel también
-    guardarUrl(url, ok, err, btn);
-  }, 10000);
-
-  window[callbackName] = function(data) {
-    clearTimeout(timeout);
-    delete window[callbackName];
-    if (script.parentNode) document.body.removeChild(script);
-    btn.disabled = false;
-    btn.textContent = 'Probar y guardar';
-    // Cualquier respuesta del script = URL válida
-    guardarUrl(url, ok, err, btn);
-  };
-
-  script.onerror = function() {
-    clearTimeout(timeout);
-    delete window[callbackName];
-    if (script.parentNode) document.body.removeChild(script);
-    btn.disabled = false;
-    btn.textContent = 'Probar y guardar';
-    err.textContent = 'No se pudo conectar. Verificá que el script esté publicado como "Cualquier persona".';
-    err.classList.add('visible');
-  };
-
-  script.onerror = function() {
-    clearTimeout(timeout);
-    delete window[callbackName];
-    btn.disabled = false;
-    btn.textContent = 'Probar y guardar';
-    err.textContent = 'Error al conectar. Verificá la URL y que el script esté publicado.';
-    err.classList.add('visible');
-  };
-
-  document.body.appendChild(script);
-}
-
-function guardarUrl(url, ok, err, btn) {
   SCRIPT_URL = url;
   try { localStorage.setItem('mtz_script_url', url); } catch(e) {}
-  if (btn) { btn.disabled = false; btn.textContent = 'Probar y guardar'; }
-  if (ok) {
-    ok.textContent = '✓ URL guardada. Cargando datos...';
-    ok.classList.add('visible');
-  }
+  if (ok) { ok.textContent = '✓ URL guardada. Cargando datos...'; ok.classList.add('visible'); }
   if (err) err.classList.remove('visible');
-  setTimeout(function() {
-    cerrarConfig();
-    cargarDatos();
-  }, 1500);
+  setTimeout(function() { cerrarConfig(); cargarDatos(); }, 1500);
 }
 
-// Buscar escuela al escribir nombre inspector
+// ── Init ────────────────────────────────────────────────────────
 const inputInspector = document.getElementById('loginInspector');
-if (inputInspector) {
-  inputInspector.addEventListener('input', buscarEscuelaInspector);
-}
+if (inputInspector) inputInspector.addEventListener('input', buscarEscuelaInspector);
 
-// Cerrar modal al hacer click fuera
 document.getElementById('configModal').addEventListener('click', function(e) {
   if (e.target === this) cerrarConfig();
 });
 </script>
 </body>
+
+
 </html>
