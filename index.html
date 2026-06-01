@@ -509,8 +509,8 @@
 <script>
 // ── URL ─────────────────────────────────────────────────────────
 let SCRIPT_URL = (function(){
-  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbza_QMlM6lWFH3jgd0ZYct31loOBhq9SRdRmwKkEFyKTn5ncfgzQKR8vpOyEKCZCX2v/exec"; }
-  catch(e) { return "https://script.google.com/macros/s/AKfycbza_QMlM6lWFH3jgd0ZYct31loOBhq9SRdRmwKkEFyKTn5ncfgzQKR8vpOyEKCZCX2v/exec"; }
+  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbytniYWDATbqBYSE6RaJc9kZyaV8RRVYSaF-snXcDNikBQJOoAxf9MLEnI-FAoJ9_A-/exec"; }
+  catch(e) { return "https://script.google.com/macros/s/AKfycbytniYWDATbqBYSE6RaJc9kZyaV8RRVYSaF-snXcDNikBQJOoAxf9MLEnI-FAoJ9_A-/exec"; }
 })();
 
 // ── Prefijos de tipo de escuela ─────────────────────────────────
@@ -782,7 +782,7 @@ function renderAdultos(datos) {
         ? '<span style="color:var(--gris);font-size:0.82rem">—</span>'
         : `<span style="font-size:0.82rem;color:#d97706">${validados}/${cant} validadxs</span>`;
     html += `<tr style="${rowStyle}">
-      <td style="font-weight:600">${a.nombre}</td>
+      <td style="font-weight:600">${a.nombre}${a.apellido ? ' ' + a.apellido : ''}</td>
       <td>${a.dni}</td>
       <td>${a.localidad}</td>
       <td>${a.telefono}</td>
