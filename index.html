@@ -582,6 +582,18 @@ function doLogin() {
   }
 }
 
+function togglePassVis() {
+  const inp = document.getElementById('loginPass');
+  const icon = document.getElementById('eyeIcon');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    icon.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    icon.textContent = '👁️';
+  }
+}
+
 function logout() {
   currentUser = null;
   document.getElementById('loginSection').style.display = 'flex';
@@ -613,7 +625,20 @@ function cargarDatos() {
     document.body.removeChild(script);
     allAdultos = data.adultos || [];
     allHijos = data.hijos || [];
+    // Cargar usuarios y asignaciones desde la hoja
+    if (data.usuariosExtra) {
+      Object.entries(data.usuariosExtra).forEach(([k,v]) => {
+        if (k) { extraUsers[k] = v; USUARIOS_DEFAULT[k] = v; }
+      });
+    }
+    if (data.asignaciones) {
+      Object.entries(data.asignaciones).forEach(([k,v]) => {
+        asignaciones[k.toUpperCase()] = Array.isArray(v) ? v : [v];
+      });
+    }
     aplicarFiltroUsuario();
+    // Si ya está logueado como inspector, re-aplicar banner con datos frescos
+    mostrarEscuelaInspector();
   };
 
   script.onerror = function() {
