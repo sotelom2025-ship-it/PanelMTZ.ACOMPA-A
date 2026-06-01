@@ -470,7 +470,7 @@
         <div class="admin-section">
           <h3>🏫 Asignar escuelas a inspector</h3>
           <div class="form-inline" style="flex-wrap:wrap;gap:10px">
-            <select id="asignarDistriталь" style="min-width:150px">
+            <select id="asignarDistrital" style="min-width:150px">
               <option value="">— Distrital —</option>
               <option value="DISTRITAL 1">Distrital 1</option>
               <option value="DISTRITAL 2">Distrital 2</option>
@@ -645,7 +645,20 @@ function cargarDatos() {
   const script = document.createElement('script');
   script.src = SCRIPT_URL + '?accion=listar&callback=' + callbackName;
 
+  // Timeout: si en 12s no respondió, mostrar error
+  const timeout = setTimeout(function() {
+    if (!window[callbackName]) return;
+    delete window[callbackName];
+    try { document.body.removeChild(script); } catch(e) {}
+    document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading" style="color:#dc2626">⚠️ No se pudo conectar al servidor. Verificá la URL en Configurar URL o esperá unos segundos y hacé clic en Actualizar.</div>';
+    document.getElementById('tablaHijosWrap').innerHTML   = '';
+    document.getElementById('stat-total').textContent    = '—';
+    document.getElementById('stat-hijos').textContent    = '—';
+    document.getElementById('stat-validados').textContent = '—';
+  }, 12000);
+
   window[callbackName] = function(data) {
+    clearTimeout(timeout);
     delete window[callbackName];
     try { document.body.removeChild(script); } catch(e) {}
     allAdultos = data.adultos || [];
@@ -671,9 +684,10 @@ function cargarDatos() {
   };
 
   script.onerror = function() {
+    clearTimeout(timeout);
     delete window[callbackName];
     try { document.body.removeChild(script); } catch(e) {}
-    document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading">Error al cargar datos. Revisá que el script esté publicado como "Cualquier persona".</div>';
+    document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading" style="color:#dc2626">⚠️ Error al cargar. Verificá que el script esté publicado como "Cualquier persona".</div>';
     document.getElementById('tablaHijosWrap').innerHTML   = '';
   };
 
@@ -943,7 +957,7 @@ function agregarUsuario() {
   actualizarSelectAsignar();
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({ accion: 'nuevoUsuario', nombre: key, rol, pass })
   });
 }
@@ -957,13 +971,13 @@ function quitarUsuario(nombre) {
   actualizarSelectAsignar();
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({ accion: 'quitarUsuario', nombre: key })
   });
 }
 
 function abrirAsignarEscuela(rol) {
-  const selDist = document.getElementById('asignarDistriталь');
+  const selDist = document.getElementById('asignarDistrital');
   if (selDist && rol && rol.startsWith('DISTRITAL')) selDist.value = rol;
   else if (selDist) {
     // Es inspector — pre-llenar nombre
@@ -974,7 +988,7 @@ function abrirAsignarEscuela(rol) {
 }
 
 function asignarEscuela() {
-  const distrital       = document.getElementById('asignarDistriталь')?.value || '';
+  const distrital       = document.getElementById('asignarDistrital')?.value || '';
   const nombreInspector = (document.getElementById('asignarInspectorNombre')?.value || '').trim().toUpperCase();
   const escuela         = document.getElementById('asignarEscuela').value.trim();
   if (!distrital || !nombreInspector || !escuela) {
@@ -993,7 +1007,7 @@ function asignarEscuela() {
   renderAsignaciones();
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({ accion: 'asignarEscuela', distrital, inspector: nombreInspector, escuela })
   });
 }
