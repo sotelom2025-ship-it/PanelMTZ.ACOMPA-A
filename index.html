@@ -426,6 +426,7 @@
             <h3>Adultos Responsables</h3>
             <input type="text" id="buscarAdulto" placeholder="Buscar por nombre o DNI..." oninput="filtrarAdultos()">
             <button class="btn-refresh" onclick="cargarDatos()">⟳ Actualizar</button>
+            <button onclick="diagnosticar()" style="margin-left:8px;background:#fef9c3;border:1px solid #fbbf24;border-radius:6px;padding:6px 12px;font-size:0.8rem;cursor:pointer;color:#92400e">🔍 Diagnóstico</button>
           </div>
           <div id="tablaAdultosWrap">
             <div class="loading">Cargando datos...</div>
@@ -530,9 +531,11 @@ const PREFIJOS = {
 };
 
 function abreviarEscuela(tipo, numero) {
-  if (!tipo) return numero || '';
-  const prefijo = PREFIJOS[tipo.toLowerCase()] || tipo;
-  return numero ? prefijo + ' ' + numero : prefijo;
+  const t = tipo != null ? String(tipo).trim() : '';
+  const n = numero != null ? String(numero).trim() : '';
+  if (!t) return n;
+  const prefijo = PREFIJOS[t.toLowerCase()] || t;
+  return n ? prefijo + ' ' + n : prefijo;
 }
 
 // ── Usuarios ────────────────────────────────────────────────────
@@ -613,6 +616,41 @@ function doLogin() {
   }
 }
 
+function diagnosticar() {
+  const info = [
+    'URL en uso: ' + SCRIPT_URL,
+    'Usuario: ' + currentUser,
+    'Inspector: ' + currentInspector,
+    'Adultos cargados: ' + allAdultos.length,
+    'Hijos cargados: ' + allHijos.length,
+    'Asignaciones: ' + JSON.stringify(asignaciones),
+  ].join('\n');
+  
+  // Probar conexión directa
+  const testName = 'diagTest_' + Date.now();
+  const s = document.createElement('script');
+  s.src = SCRIPT_URL + '?accion=listar&callback=' + testName + '&t=' + Date.now();
+  window[testName] = function(data) {
+    delete window[testName];
+    document.body.removeChild(s);
+    const tipo = typeof data;
+    const adultos = data && data.adultos ? data.adultos.length : 'N/A';
+    const hijos = data && data.hijos ? data.hijos.length : 'N/A';
+    alert(info + '\n\n--- RESPUESTA SERVIDOR ---\nTipo: ' + tipo + '\nAdultos: ' + adultos + '\nHijos: ' + hijos);
+  };
+  s.onerror = function() {
+    delete window[testName];
+    alert(info + '\n\n--- ERROR ---\nNo se pudo conectar al servidor');
+  };
+  setTimeout(function() {
+    if (window[testName]) {
+      delete window[testName];
+      alert(info + '\n\n--- TIMEOUT ---\nEl servidor no respondió en 10s');
+    }
+  }, 10000);
+  document.body.appendChild(s);
+}
+
 function logout() {
   currentUser      = null;
   currentInspector = null;
@@ -643,7 +681,7 @@ function cargarDatos() {
 
   const callbackName = 'mtzCallback_' + Date.now();
   const script = document.createElement('script');
-  script.src = SCRIPT_URL + '?accion=listar&callback=' + callbackName;
+  script.src = SCRIPT_URL + '?accion=listar&callback=' + callbackName + '&t=' + Date.now();
 
   // Timeout: si en 12s no respondió, mostrar error
   const timeout = setTimeout(function() {
