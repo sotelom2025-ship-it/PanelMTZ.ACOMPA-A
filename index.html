@@ -508,10 +508,9 @@
 
 <script>
 // ── URL ─────────────────────────────────────────────────────────
-let SCRIPT_URL = (function(){
-  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbwNamGdocBszLWdYHKB4ldtLEkf_Fs1ht-zD91RlCPAdcWu4eyGJz6DCav70AF5lmbT/exec"; }
-  catch(e) { return "https://script.google.com/macros/s/AKfycbwNamGdocBszLWdYHKB4ldtLEkf_Fs1ht-zD91RlCPAdcWu4eyGJz6DCav70AF5lmbT/exec"; }
-})();
+// URL del Apps Script — siempre usa esta, ignora localStorage para evitar conflictos
+let SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNamGdocBszLWdYHKB4ldtLEkf_Fs1ht-zD91RlCPAdcWu4eyGJz6DCav70AF5lmbT/exec";
+try { localStorage.removeItem('mtz_script_url'); } catch(e) {}
 
 // ── Prefijos de tipo de escuela ─────────────────────────────────
 const PREFIJOS = {
@@ -592,6 +591,7 @@ function doLogin() {
   const inspector = (document.getElementById('loginInspector') ? document.getElementById('loginInspector').value.trim() : '');
   const err       = document.getElementById('loginError');
   err.style.display = 'none';
+  document.getElementById('nav-admin').style.display = 'none'; // reset always
   if (!user) { err.textContent = 'Seleccioná un usuario.'; err.style.display = 'block'; return; }
 
   const allUsers = Object.assign({}, USUARIOS_DEFAULT, extraUsers);
@@ -666,7 +666,7 @@ function cargarDatos() {
     if (typeof data === 'string') {
       try { data = JSON.parse(data); } catch(e) { console.error('Parse error:', e, data); }
     }
-    console.log('Datos recibidos:', typeof data, 'adultos:', data && data.adultos ? data.adultos.length : 'N/A', 'hijos:', data && data.hijos ? data.hijos.length : 'N/A');
+    console.log('Datos recibidos - adultos:', data.adultos ? data.adultos.length : 0, 'hijos:', data.hijos ? data.hijos.length : 0);
 
     if (!data || typeof data !== 'object') {
       document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading" style="color:#dc2626">⚠️ Respuesta inválida del servidor. Revisá el Apps Script.</div>';
@@ -794,7 +794,7 @@ function adultoValidado(dni) {
 
 function renderAdultos(datos) {
   const wrap = document.getElementById('tablaAdultosWrap');
-  if (!datos.length) { wrap.innerHTML = '<div class="empty">No hay inscripciones aún.</div>'; return; }
+  if (!datos || !datos.length) { wrap.innerHTML = '<div class="empty">No hay inscripciones aún.</div>'; return; }
   let html = '<table><thead><tr><th>Nombre</th><th>DNI</th><th>Localidad</th><th>Teléfono</th><th>Hijxs</th><th>Escuela origen</th><th>Inscripción</th></tr></thead><tbody>';
   for (const a of datos) {
     const hijxsAdulto = hijosFiltrados.filter(h => h.adulto_dni === a.dni);
@@ -824,7 +824,7 @@ function renderAdultos(datos) {
 
 function renderHijos(datos) {
   const wrap = document.getElementById('tablaHijosWrap');
-  if (!datos.length) { wrap.innerHTML = '<div class="empty">No hay hijxs registradxs.</div>'; return; }
+  if (!datos || !datos.length) { wrap.innerHTML = '<div class="empty">No hay hijxs registradxs.</div>'; return; }
   let html = '<table><thead><tr><th>Nombre hijx</th><th>DNI</th><th>Escuela</th><th>Edad</th><th>Grado/Año</th><th>Adulto</th><th>Validación</th></tr></thead><tbody>';
   for (const h of datos) {
     const esVal = h.validado === 'SI';
