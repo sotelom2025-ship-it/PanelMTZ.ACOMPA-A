@@ -509,8 +509,8 @@
 <script>
 // ── URL ─────────────────────────────────────────────────────────
 let SCRIPT_URL = (function(){
-  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbytniYWDATbqBYSE6RaJc9kZyaV8RRVYSaF-snXcDNikBQJOoAxf9MLEnI-FAoJ9_A-/exec"; }
-  catch(e) { return "https://script.google.com/macros/s/AKfycbytniYWDATbqBYSE6RaJc9kZyaV8RRVYSaF-snXcDNikBQJOoAxf9MLEnI-FAoJ9_A-/exec"; }
+  try { return localStorage.getItem('mtz_script_url') || "https://script.google.com/macros/s/AKfycbwNamGdocBszLWdYHKB4ldtLEkf_Fs1ht-zD91RlCPAdcWu4eyGJz6DCav70AF5lmbT/exec"; }
+  catch(e) { return "https://script.google.com/macros/s/AKfycbwNamGdocBszLWdYHKB4ldtLEkf_Fs1ht-zD91RlCPAdcWu4eyGJz6DCav70AF5lmbT/exec"; }
 })();
 
 // ── Prefijos de tipo de escuela ─────────────────────────────────
@@ -661,6 +661,19 @@ function cargarDatos() {
     clearTimeout(timeout);
     delete window[callbackName];
     try { document.body.removeChild(script); } catch(e) {}
+
+    // Si el GAS devuelve un string (doble serialización), parsearlo
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); } catch(e) { console.error('Parse error:', e, data); }
+    }
+    console.log('Datos recibidos:', typeof data, 'adultos:', data && data.adultos ? data.adultos.length : 'N/A', 'hijos:', data && data.hijos ? data.hijos.length : 'N/A');
+
+    if (!data || typeof data !== 'object') {
+      document.getElementById('tablaAdultosWrap').innerHTML = '<div class="loading" style="color:#dc2626">⚠️ Respuesta inválida del servidor. Revisá el Apps Script.</div>';
+      document.getElementById('tablaHijosWrap').innerHTML = '';
+      return;
+    }
+
     allAdultos = data.adultos || [];
     allHijos   = data.hijos   || [];
 
@@ -918,6 +931,7 @@ function cargarAdmin() {
 
 function renderUsuarios() {
   const lista = document.getElementById('listaUsuarios');
+  if (!lista) return;
   const fijos = [
     { nombre: 'Distrital 1', rol: 'DISTRITAL 1' },
     { nombre: 'Distrital 2', rol: 'DISTRITAL 2' },
